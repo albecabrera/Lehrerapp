@@ -15,6 +15,18 @@ const TOOLS = [
   { id: 'elternbrief',  label: 'Elternbrief-Assistent',   icon: '✉️',  colorVar: 'var(--red)',     desc: 'Verfasse professionelle Elterninformationen schnell und einfach.' },
 ];
 
+async function callClaudeLocalBackend(prompt) {
+  const r = await fetch('/api/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt }),
+  });
+  let data = {};
+  try { data = await r.json(); } catch {}
+  if (!r.ok) throw new Error(data.error || 'api_error');
+  return data.text || 'Keine Antwort erhalten.';
+}
+
 // ── Shared helpers ────────────────────────────────────────────────────────
 function FormRow({ label, children }) {
   return (
@@ -25,10 +37,30 @@ function FormRow({ label, children }) {
   );
 }
 function ClassSelect({ val, onChange }) {
+  const classOptions = (() => {
+    let fromStorage = null;
+    try {
+      const raw = localStorage.getItem('lehrerapp-classes');
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed) && parsed.length > 0) fromStorage = parsed;
+    } catch {}
+
+    const source = fromStorage || (Array.isArray(AppData.classes) ? AppData.classes : []);
+    const normalized = source
+      .filter(c => c && typeof c.name === 'string' && c.name.trim())
+      .map((c, idx) => ({
+        id: c.id ?? `tmp-${idx}`,
+        name: c.name.trim(),
+        subject: c.subject || '',
+      }));
+    const dedup = normalized.filter((c, i, arr) => arr.findIndex(x => x.name === c.name && x.subject === c.subject) === i);
+    return dedup.sort((a, b) => String(a.name).localeCompare(String(b.name), 'de-DE'));
+  })();
+
   return (
     <select value={val} onChange={e => onChange(e.target.value)} style={inputSt}>
-      <option value="">Klasse wählen…</option>
-      {AppData.classes.map(c => <option key={c.id} value={c.name}>{c.name} – {c.subject}</option>)}
+      <option value="">{classOptions.length ? 'Klasse wählen…' : 'Keine Klassen vorhanden'}</option>
+      {classOptions.map(c => <option key={c.id} value={c.name}>{c.name}{c.subject ? ` – ${c.subject}` : ''}</option>)}
     </select>
   );
 }
@@ -48,7 +80,7 @@ function ToolLayout({ title, icon, colorVar, onBack, form, onGenerate, loading, 
           <h2 style={{ fontSize: '21px', fontWeight: '900', color: 'var(--text-1)', letterSpacing: '-0.4px', marginBottom: '4px' }}>{title}</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
             <span style={{ fontSize: '9px', background: 'var(--purple)', color: '#fff', padding: '2px 7px', borderRadius: 'var(--r-sm)', fontWeight: '800' }}>✦ KI</span>
-            <span style={{ fontSize: '12.5px', color: 'var(--text-3)', fontWeight: '500' }}>Generiert von Claude KI · mit deinem Konto verbunden</span>
+            <span style={{ fontSize: '12.5px', color: 'var(--text-3)', fontWeight: '500' }}>Generiert mit Claude API · Ergebnisse lokal speicherbar</span>
           </div>
         </div>
       </div>
@@ -68,6 +100,8 @@ function ToolLayout({ title, icon, colorVar, onBack, form, onGenerate, loading, 
             boxShadow: disabled || loading ? 'none' : `0 2px 10px oklch(from ${colorVar} l c h / 0.38)`,
             transition: 'transform 0.12s, box-shadow 0.12s',
           }}
+            aria-busy={loading ? 'true' : 'false'}
+            aria-live="polite"
             onMouseEnter={e => { if (!disabled && !loading) { e.currentTarget.style.transform = 'translateY(-1px)'; }}}
             onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
           >
@@ -76,6 +110,9 @@ function ToolLayout({ title, icon, colorVar, onBack, form, onGenerate, loading, 
               : <>{icon} Generieren</>
             }
           </button>
+          {!loading && result && result.startsWith('Fehler') && (
+            <window.UI.Alert type="error" style={{ marginTop: '10px' }}>{result}</window.UI.Alert>
+          )}
         </div>
 
         {/* Result panel */}
@@ -85,7 +122,7 @@ function ToolLayout({ title, icon, colorVar, onBack, form, onGenerate, loading, 
               <div style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-2)' }}>✦ Ergebnis</div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={copyResult} style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '5px 13px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-2)', fontWeight: '600' }}>Kopieren</button>
-                <button onClick={() => window.showToast('✓ In Materialdatenbank gespeichert')} style={{ background: 'var(--accent-bg)', border: 'none', borderRadius: 'var(--r-md)', padding: '5px 13px', fontSize: '12px', cursor: 'pointer', color: 'var(--accent-text)', fontWeight: '700' }}>Speichern</button>
+                <button onClick={() => onGenerate.saveResult ? onGenerate.saveResult() : window.showToast('Speichern folgt in der nächsten Ausbaustufe.')} style={{ background: 'var(--accent-bg)', border: 'none', borderRadius: 'var(--r-md)', padding: '5px 13px', fontSize: '12px', cursor: 'pointer', color: 'var(--accent-text)', fontWeight: '700' }}>Speichern</button>
               </div>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', fontSize: '13px', lineHeight: 1.75, color: 'var(--text-1)', whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{result}</div>
@@ -101,30 +138,72 @@ function WorksheetTool({ onBack }) {
   const [form, setForm] = useState({ klasse: '', fach: '', thema: '', niveau: 'gemischt', aufgaben: '5', hinweise: '' });
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
+  const [fachMode, setFachMode] = useState('preset');
   const set = k => v => setForm(p => ({ ...p, [k]: v }));
+
+  function saveResult() {
+    if (!result) return window.showToast('Erst generieren, dann speichern.');
+    const cls = AppData.classes.find(c => c.name === form.klasse);
+    const nextId = (Math.max(0, ...AppData.materials.map(m => m.id || 0)) + 1);
+    const material = {
+      id: nextId,
+      title: `Arbeitsblatt: ${form.thema}`,
+      type: 'Arbeitsblatt',
+      classId: cls ? cls.id : null,
+      subject: form.fach || (cls ? cls.subject : null),
+      date: new Date().toISOString().slice(0, 10),
+      tags: [form.thema, form.niveau].filter(Boolean),
+      size: `${Math.max(8, Math.ceil(result.length / 10))} KB`,
+      content: result,
+    };
+    window.LocalStore.addMaterial(material);
+    window.showToast('✓ Lokal gespeichert');
+  }
 
   async function generate() {
     setLoading(true); setResult('');
-    const prompt = `Erstelle ein Arbeitsblatt:
-- Klasse: ${form.klasse||'nicht angegeben'} | Fach: ${form.fach||'nicht angegeben'}
-- Thema: ${form.thema} | Niveau: ${form.niveau} | Aufgaben: ${form.aufgaben}
-- Hinweise: ${form.hinweise||'keine'}
+    const prompt = `Erstelle ein differenziertes Arbeitsblatt auf Deutsch.
+Kontext:
+- Klasse/Kurs: ${form.klasse || 'nicht angegeben'}
+- Fach: ${form.fach || 'nicht angegeben'}
+- Thema: ${form.thema}
+- Niveau: ${form.niveau}
+- Anzahl Aufgaben: ${form.aufgaben}
+- Zusätzliche Hinweise: ${form.hinweise || 'keine'}
 
-Erstelle ein strukturiertes Arbeitsblatt mit:
-1. Titel und Klassenangabe
-2. Lernziel (1–2 Sätze)
-3. ${form.aufgaben} nummerierte Aufgaben mit klaren Anweisungen
-4. Erwartungshorizont / Lösungshinweise
+Gib aus:
+1) Titel
+2) Lernziel (1-2 Sätze)
+3) ${form.aufgaben} nummerierte Aufgaben
+4) Erwartungshorizont/Lösungshinweise
 
-Formatiere übersichtlich mit Markdown.`;
-    try { setResult(await window.claude.complete(prompt)); }
-    catch { setResult('Fehler beim Generieren. Bitte erneut versuchen.'); }
+Format: klares Markdown, direkt einsetzbar.`;
+    try { setResult(await callClaudeLocalBackend(prompt)); }
+    catch (err) {
+      const msg = String(err?.message || err || '');
+      if (msg.includes('missing_api_key')) setResult('Fehler: ANTHROPIC_API_KEY fehlt. Starte den Server mit deiner API-Key.');
+      else setResult(`Fehler beim Generieren: ${msg}`);
+    }
     setLoading(false);
   }
+  generate.saveResult = saveResult;
   return <ToolLayout title="Arbeitsblatt-Generator" icon="📄" colorVar="var(--accent)" onBack={onBack} onGenerate={generate} loading={loading} result={result} disabled={!form.thema}
     form={<>
       <FormRow label="Klasse / Kurs"><ClassSelect val={form.klasse} onChange={set('klasse')}/></FormRow>
-      <FormRow label="Fach"><input value={form.fach} onChange={e=>set('fach')(e.target.value)} placeholder="z.B. Informatik" style={inputSt}/></FormRow>
+      <FormRow label="Fach">
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+          <button type="button" onClick={() => setFachMode('preset')} style={{ padding: '6px 10px', borderRadius: 'var(--r-md)', border: '1px solid var(--border)', background: fachMode === 'preset' ? 'var(--accent)' : 'var(--bg-card)', color: fachMode === 'preset' ? 'var(--accent-fg)' : 'var(--text-2)', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>Vorgaben</button>
+          <button type="button" onClick={() => setFachMode('manual')} style={{ padding: '6px 10px', borderRadius: 'var(--r-md)', border: '1px solid var(--border)', background: fachMode === 'manual' ? 'var(--accent)' : 'var(--bg-card)', color: fachMode === 'manual' ? 'var(--accent-fg)' : 'var(--text-2)', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>Manuell</button>
+        </div>
+        {fachMode === 'preset' ? (
+          <select value={form.fach} onChange={e=>set('fach')(e.target.value)} style={inputSt}>
+            <option value="">Fach wählen…</option>
+            {['Informatik','Spanisch','Sport','ELSA','KS'].map(f => <option key={f} value={f}>{f}</option>)}
+          </select>
+        ) : (
+          <input value={form.fach} onChange={e=>set('fach')(e.target.value)} placeholder="Asignatura manual…" style={inputSt}/>
+        )}
+      </FormRow>
       <FormRow label="Thema *"><input value={form.thema} onChange={e=>set('thema')(e.target.value)} placeholder="z.B. Sortieralgorithmen" style={inputSt}/></FormRow>
       <FormRow label="Niveau"><select value={form.niveau} onChange={e=>set('niveau')(e.target.value)} style={inputSt}>{['einfach','mittel','anspruchsvoll','gemischt'].map(n=><option key={n}>{n}</option>)}</select></FormRow>
       <FormRow label="Anzahl Aufgaben"><select value={form.aufgaben} onChange={e=>set('aufgaben')(e.target.value)} style={inputSt}>{['3','4','5','6','8','10'].map(n=><option key={n}>{n}</option>)}</select></FormRow>
@@ -139,8 +218,22 @@ function TafelbildTool({ onBack }) {
   const set = k => v => setForm(p => ({ ...p, [k]: v }));
   async function generate() {
     setLoading(true); setResult('');
-    try { setResult(await window.claude.complete(`Erstelle einen Tafelbild-Plan:\n- Klasse: ${form.klasse||'—'} | Fach: ${form.fach||'—'}\n- Thema: ${form.thema} | Lernziel: ${form.ziel||'—'} | Dauer: ${form.dauer} Min.\n\nErstelle:\n1. **Tafelstruktur** (Spalten/Bereiche)\n2. **Aufbau-Reihenfolge** (was wird wann angeschrieben)\n3. **Kernbegriffe und Definitionen**\n4. **Skizzen/Diagramme** (textlich beschrieben)\n5. **Farbkodierungs-Vorschlag**\n\nFormatiere klar mit Markdown.`)); }
-    catch { setResult('Fehler beim Generieren.'); }
+    try { setResult(await callClaudeLocalBackend(`Erstelle einen Tafelbild-Plan auf Deutsch:
+- Klasse/Kurs: ${form.klasse||'—'}
+- Fach: ${form.fach||'—'}
+- Thema: ${form.thema}
+- Lernziel: ${form.ziel||'—'}
+- Dauer: ${form.dauer} Minuten
+
+Liefern:
+1. Tafelstruktur
+2. Aufbau-Reihenfolge
+3. Kernbegriffe/Definitionen
+4. Skizzenhinweise
+5. Farbkodierung
+
+Markdown, konkret und unterrichtstauglich.`)); }
+    catch (err) { setResult(`Fehler beim Generieren: ${String(err?.message || err || 'Unbekannt')}`); }
     setLoading(false);
   }
   return <ToolLayout title="Tafelbild-Planner" icon="⬚" colorVar="oklch(0.52 0.17 195)" onBack={onBack} onGenerate={generate} loading={loading} result={result} disabled={!form.thema}
@@ -160,8 +253,18 @@ function DifferenzTool({ onBack }) {
   const set = k => v => setForm(p => ({ ...p, [k]: v }));
   async function generate() {
     setLoading(true); setResult('');
-    try { setResult(await window.claude.complete(`Erstelle eine dreistufige Differenzierung:\n- Fach: ${form.fach||'—'} | Klasse: ${form.klasse||'—'}\n- Aufgabe/Thema: ${form.aufgabe}\n\n## ⭐ Grundniveau (mit Unterstützung)\nVereinfachte Version mit Scaffolding und Hilfestellungen.\n\n## ⭐⭐ Mittleres Niveau\nStandardaufgabe für alle SuS.\n\n## ⭐⭐⭐ Erweitertes Niveau\nAnspruchsvolle Transfer- oder Kreativaufgabe.\n\nFormatiere jede Stufe klar mit Markdown.`)); }
-    catch { setResult('Fehler beim Generieren.'); }
+    try { setResult(await callClaudeLocalBackend(`Erstelle eine 3-stufige Differenzierung auf Deutsch.
+Fach: ${form.fach||'—'}
+Klasse/Kurs: ${form.klasse||'—'}
+Ausgangsaufgabe: ${form.aufgabe}
+
+Struktur:
+⭐ Grundniveau
+⭐⭐ Mittleres Niveau
+⭐⭐⭐ Erweitertes Niveau
+
+Je Stufe konkrete Aufgaben, Hilfen und Lernziel.`)); }
+    catch (err) { setResult(`Fehler beim Generieren: ${String(err?.message || err || 'Unbekannt')}`); }
     setLoading(false);
   }
   return <ToolLayout title="Differenzierungshelfer" icon="⊞" colorVar="var(--green)" onBack={onBack} onGenerate={generate} loading={loading} result={result} disabled={!form.aufgabe}
@@ -179,8 +282,18 @@ function AppBaukastenTool({ onBack }) {
   const set = k => v => setForm(p => ({ ...p, [k]: v }));
   async function generate() {
     setLoading(true); setResult('');
-    try { setResult(await window.claude.complete(`Erstelle ein Konzept für eine digitale Lern-App:\n- Zweck: ${form.zweck} | Zielgruppe: ${form.zielgruppe||'Schüler:innen'}\n- Features: ${form.features||'—'}\n\nErstelle:\n1. **App-Konzept** (Name, Beschreibung, Lernziel)\n2. **Hauptfunktionen** (5–7 konkrete Features)\n3. **Screen-Aufbau** (welche Ansichten gibt es)\n4. **Gamification-Elemente**\n5. **Technische Umsetzungshinweise**\n\nFormatiere strukturiert mit Markdown.`)); }
-    catch { setResult('Fehler beim Generieren.'); }
+    try { setResult(await callClaudeLocalBackend(`Erstelle ein App-Konzept auf Deutsch.
+Zweck: ${form.zweck}
+Zielgruppe: ${form.zielgruppe||'Schüler:innen'}
+Gewünschte Features: ${form.features||'—'}
+
+Ausgabe mit:
+1) App-Idee + Name
+2) Kernfunktionen
+3) Screen-Struktur
+4) Gamification
+5) Technische Hinweise`)); }
+    catch (err) { setResult(`Fehler beim Generieren: ${String(err?.message || err || 'Unbekannt')}`); }
     setLoading(false);
   }
   return <ToolLayout title="App-Baukasten" icon="📱" colorVar="var(--amber)" onBack={onBack} onGenerate={generate} loading={loading} result={result} disabled={!form.zweck}
@@ -198,8 +311,15 @@ function ElternbriefTool({ onBack }) {
   const set = k => v => setForm(p => ({ ...p, [k]: v }));
   async function generate() {
     setLoading(true); setResult('');
-    try { setResult(await window.claude.complete(`Verfasse einen Elternbrief:\n- Klasse: ${form.klasse||'—'} | Anlass: ${form.anlass}\n- Details: ${form.details||'keine weiteren'} | Ton: ${form.ton}\n- Absender: ${AppData.user.name}, ${AppData.user.school} | Datum: 28. April 2026\n\nSchreibe einen vollständigen, professionellen Elternbrief auf Deutsch mit Anrede, sachlichem Hauptteil, ggf. Rückmeldebogen-Hinweis und freundlicher Verabschiedung.\nFormatiere wie ein echtes Anschreiben.`)); }
-    catch { setResult('Fehler beim Generieren.'); }
+    try { setResult(await callClaudeLocalBackend(`Schreibe einen professionellen Elternbrief auf Deutsch.
+Klasse/Kurs: ${form.klasse||'—'}
+Anlass: ${form.anlass}
+Details: ${form.details||'keine'}
+Ton: ${form.ton}
+Absender: ${AppData.user.name}, ${AppData.user.school}
+
+Struktur: Anrede, Hauptteil, klare Infos, freundlicher Abschluss.`)); }
+    catch (err) { setResult(`Fehler beim Generieren: ${String(err?.message || err || 'Unbekannt')}`); }
     setLoading(false);
   }
   return <ToolLayout title="Elternbrief-Assistent" icon="✉️" colorVar="var(--red)" onBack={onBack} onGenerate={generate} loading={loading} result={result} disabled={!form.anlass}
@@ -227,7 +347,7 @@ function AIToolsView({ activeToolId, onToolOpen, onToolBack }) {
           <h2 style={{ fontSize: '22px', fontWeight: '900', color: 'var(--text-1)', letterSpacing: '-0.4px' }}>KI-Services</h2>
           <span style={{ fontSize: '10px', background: 'var(--purple)', color: '#fff', padding: '3px 9px', borderRadius: 'var(--r-sm)', fontWeight: '800', letterSpacing: '0.05em' }}>✦ CLAUDE KI</span>
         </div>
-        <p style={{ color: 'var(--text-3)', fontSize: '13.5px', fontWeight: '500' }}>Alle Tools sind mit deinem Claude-Konto verbunden und generieren Inhalte direkt für deinen Unterricht.</p>
+        <p style={{ color: 'var(--text-3)', fontSize: '13.5px', fontWeight: '500' }}>Alle Tools nutzen deinen Claude-API-Zugang; Ergebnisse kannst du lokal in der Materialdatenbank speichern.</p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(265px,1fr))', gap: '14px' }}>

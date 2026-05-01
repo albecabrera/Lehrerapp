@@ -2,7 +2,19 @@
 const { useState } = React;
 
 function Sidebar({ currentView, onNavigate }) {
+  const [dragClassId, setDragClassId] = useState(null);
   const { classes, classColors, user } = AppData;
+  function moveClass(dragId, targetId) {
+    if (!dragId || !targetId || dragId === targetId) return;
+    const arr = [...(AppData.classes || [])];
+    const from = arr.findIndex(c => c.id === dragId);
+    const to = arr.findIndex(c => c.id === targetId);
+    if (from < 0 || to < 0) return;
+    const [item] = arr.splice(from, 1);
+    arr.splice(to, 0, item);
+    window.LocalStore.saveClasses(arr);
+    window.showToast('✓ Reihenfolge gespeichert');
+  }
 
   const calItems = [
     { id: 'today', label: 'Heute',  icon: '◈' },
@@ -102,7 +114,25 @@ function Sidebar({ currentView, onNavigate }) {
           const active = currentView === 'class-' + cls.id;
           const color = classColors[cls.colorIdx];
           return (
-            <button key={cls.id} className="nav-btn" onClick={() => onNavigate('class-' + cls.id)} style={{
+            <button
+              key={cls.id}
+              draggable
+              onDragStart={(e) => {
+                setDragClassId(cls.id);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', String(cls.id));
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const id = Number(e.dataTransfer.getData('text/plain')) || dragClassId;
+                moveClass(id, cls.id);
+                setDragClassId(null);
+              }}
+              onDragEnd={() => setDragClassId(null)}
+              className="nav-btn"
+              onClick={() => onNavigate('class-' + cls.id)}
+              style={{
               display: 'flex', alignItems: 'center', gap: '8px',
               width: '100%', padding: '6px 10px',
               background: active ? 'var(--accent-bg)' : 'transparent',
@@ -110,6 +140,7 @@ function Sidebar({ currentView, onNavigate }) {
               color: active ? 'var(--accent-text)' : 'var(--text-2)',
               fontSize: '13px', fontWeight: active ? '600' : '400', textAlign: 'left',
               borderLeft: active ? '2.5px solid var(--accent)' : '2.5px solid transparent',
+              opacity: dragClassId === cls.id ? 0.6 : 1,
             }}>
               <div style={{
                 width: '22px', height: '22px', borderRadius: '6px', background: color, flexShrink: 0,
@@ -118,6 +149,7 @@ function Sidebar({ currentView, onNavigate }) {
               }}>
                 <span style={{ color: '#fff', fontSize: '9px', fontWeight: '800' }}>{cls.name.slice(0,2).toUpperCase()}</span>
               </div>
+              <span style={{ fontSize: '12px', opacity: 0.9, flexShrink: 0 }}>📘</span>
               <span style={{ flex: 1 }}>{cls.name}</span>
               <span style={{ fontSize: '11px', color: 'var(--text-3)', fontWeight: '500' }}>{cls.students}</span>
             </button>

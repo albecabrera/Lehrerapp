@@ -1,5 +1,5 @@
 
-const { useState } = React;
+const { useState, useEffect } = React;
 
 const HOUR_H   = 64;
 const DAY_START = 7;
@@ -10,6 +10,10 @@ function timeToPx(s,e) { const [sh,sm]=s.split(':').map(Number); const [eh,em]=e
 function toKey(d)      { return d.toISOString().slice(0,10); }
 function addDays(d,n)  { const r=new Date(d); r.setDate(r.getDate()+n); return r; }
 function fmtDate(d)    { return d.toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long',year:'numeric'}); }
+function isInRange(key, start, end) { return key >= start && key <= end; }
+function getHolidayForDate(key) {
+  return (AppData.holidays || []).find(h => isInRange(key, h.start, h.end));
+}
 
 function getClass(id)  { return AppData.classes.find(c=>c.id===id); }
 function getColor(cid) { if(!cid) return 'oklch(0.60 0.05 250)'; const c=getClass(cid); return c?AppData.classColors[c.colorIdx]:'oklch(0.60 0.05 250)'; }
@@ -84,6 +88,7 @@ function TimeGrid({ events=[], onEventClick }) {
 function DayView({ date, onEventClick, onAddLesson }) {
   const key  = toKey(date);
   const evs  = AppData.events[key]||[];
+  const holiday = getHolidayForDate(key);
   const lessons  = evs.filter(e=>e.type==='lesson');
   const subjects = [...new Set(lessons.map(e=>e.title))];
   const classIds = [...new Set(lessons.map(e=>e.classId).filter(Boolean))];
@@ -102,11 +107,16 @@ function DayView({ date, onEventClick, onAddLesson }) {
           </div>
         ))}
       </div>
+      {holiday && (
+        <div style={{margin:'0 24px 12px', padding:'10px 14px', border:'1px solid var(--amber)', background:'var(--amber-bg)', borderRadius:'var(--r-md)', fontSize:'12.5px', color:'var(--amber)', fontWeight:'700'}}>
+          🏖️ NRW Schulferien: {holiday.name}
+        </div>
+      )}
       <div style={{flex:1, overflowY:'auto', padding:'0 0 24px'}}>
         <TimeGrid events={evs} onEventClick={onEventClick}/>
       </div>
       <div style={{padding:'12px 24px', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'center', background:'var(--bg-card)'}}>
-        <button onClick={onAddLesson} style={{
+        <button onClick={()=>onAddLesson(date)} style={{
           background:'var(--accent)', color:'var(--accent-fg)', border:'none',
           borderRadius:'var(--r-md)', padding:'9px 22px', fontSize:'13px', fontWeight:'600',
           cursor:'pointer', display:'flex', alignItems:'center', gap:'7px',
@@ -127,7 +137,7 @@ function WeekView({ date, onEventClick }) {
   const dow = mon.getDay()===0?6:mon.getDay()-1;
   mon.setDate(mon.getDate()-dow);
   const days = Array.from({length:5},(_,i)=>addDays(mon,i));
-  const todayKey = '2026-04-28';
+  const todayKey = toKey(new Date());
 
   return (
     <div style={{flex:1, overflowY:'auto', padding:'16px 20px 24px'}}>
@@ -139,6 +149,7 @@ function WeekView({ date, onEventClick }) {
         <div style={{background:'var(--bg-subtle)', borderBottom:'1px solid var(--border)'}}/>
         {days.map(d=>{
           const isToday=toKey(d)===todayKey;
+          const holiday = getHolidayForDate(toKey(d));
           return (
             <div key={toKey(d)} style={{
               padding:'10px 8px', textAlign:'center',
@@ -152,6 +163,7 @@ function WeekView({ date, onEventClick }) {
                 fontSize:'19px', fontWeight: isToday?'800':'400',
                 color: isToday?'var(--accent)':'var(--text-1)', marginTop:'2px',
               }}>{d.getDate()}</div>
+              {holiday && <div style={{fontSize:'10px', color:'var(--amber)', fontWeight:'700', marginTop:'2px'}}>Ferien</div>}
             </div>
           );
         })}
@@ -199,7 +211,7 @@ function MonthView({ date, onDayClick }) {
   const firstDay=new Date(year,month,1);
   const startDow=firstDay.getDay()===0?6:firstDay.getDay()-1;
   const daysInMonth=new Date(year,month+1,0).getDate();
-  const todayKey='2026-04-28';
+  const todayKey=toKey(new Date());
   const cells=[];
   for(let i=0;i<startDow;i++)cells.push(null);
   for(let d=1;d<=daysInMonth;d++)cells.push(new Date(year,month,d));
@@ -220,6 +232,7 @@ function MonthView({ date, onDayClick }) {
             {week.map((d,di)=>{
               const key=d?toKey(d):null;
               const evs=key?(AppData.events[key]||[]).filter(e=>e.type==='lesson'):[];
+              const holiday=key?getHolidayForDate(key):null;
               const isToday=key===todayKey;
               const isWknd=di>=5;
               return (
@@ -251,6 +264,7 @@ function MonthView({ date, onDayClick }) {
                         overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',
                       }}>{ev.title}</div>
                     ))}
+                    {holiday && <div style={{fontSize:'10px', color:'var(--amber)', fontWeight:'700'}}>🏖️ {holiday.name}</div>}
                     {evs.length>3&&<div style={{fontSize:'10px',color:'var(--text-3)',fontWeight:'500'}}>+{evs.length-3} weitere</div>}
                   </>}
                 </div>
@@ -267,7 +281,7 @@ function MonthView({ date, onDayClick }) {
 function YearView({ date, onMonthClick }) {
   const year=date.getFullYear();
   const monthNames=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
-  const today=new Date('2026-04-28');
+  const today=new Date();
 
   return (
     <div style={{padding:'16px 20px 24px', flex:1, overflowY:'auto'}}>
@@ -296,6 +310,7 @@ function YearView({ date, onMonthClick }) {
                   const isToday=d&&mi===today.getMonth()&&d===today.getDate()&&year===today.getFullYear();
                   const key=d?toKey(new Date(year,mi,d)):null;
                   const hasEv=key&&AppData.events[key]&&AppData.events[key].some(e=>e.type==='lesson');
+                  const hasHoliday=key&&!!getHolidayForDate(key);
                   return (
                     <div key={i} style={{
                       fontSize:'9px',textAlign:'center',padding:'1px 0',
@@ -304,7 +319,8 @@ function YearView({ date, onMonthClick }) {
                       borderRadius:'50%',position:'relative',fontWeight:hasEv&&!isToday?'700':'400',
                     }}>
                       {d||''}
-                      {hasEv&&!isToday&&<span style={{position:'absolute',bottom:0,left:'50%',transform:'translateX(-50%)',width:'3px',height:'3px',borderRadius:'50%',background:'var(--accent)',display:'block'}}/>}
+                      {hasEv&&!isToday&&<span style={{position:'absolute',bottom:0,left:'45%',transform:'translateX(-50%)',width:'3px',height:'3px',borderRadius:'50%',background:'var(--accent)',display:'block'}}/>}
+                      {hasHoliday&&!isToday&&<span style={{position:'absolute',bottom:0,left:'58%',transform:'translateX(-50%)',width:'3px',height:'3px',borderRadius:'50%',background:'var(--amber)',display:'block'}}/>}
                     </div>
                   );
                 })}
@@ -318,7 +334,7 @@ function YearView({ date, onMonthClick }) {
 }
 
 // ── Event Modal ───────────────────────────────────────────────────────────
-function EventModal({ ev, onClose }) {
+function EventModal({ ev, onClose, onDelete }) {
   if(!ev)return null;
   const cls=ev.classId?getClass(ev.classId):null;
   const color=getColor(ev.classId);
@@ -348,14 +364,19 @@ function EventModal({ ev, onClose }) {
           <div style={{fontSize:'10px',color:'var(--accent-text)',fontWeight:'700',letterSpacing:'0.07em',textTransform:'uppercase',marginBottom:'3px'}}>Thema</div>
           <div style={{fontSize:'13.5px',color:'var(--text-1)',fontWeight:'500'}}>{ev.topic}</div>
         </div>}
-        {ev.room&&<div style={{fontSize:'13px',color:'var(--text-3)',fontWeight:'500'}}>📍 {ev.room}</div>}
+        {ev.room&&<div style={{fontSize:'13px',color:'var(--text-3)',fontWeight:'500', marginBottom:'14px'}}>📍 {ev.room}</div>}
+        {ev.type === 'lesson' && (
+          <button onClick={() => { onDelete(ev.id); onClose(); }} style={{padding:'8px 12px', background:'var(--red-bg)', color:'var(--red)', border:'1px solid var(--red)', borderRadius:'var(--r-md)', cursor:'pointer', fontSize:'12px', fontWeight:'700'}}>
+            Stunde löschen
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
 // ── Add Lesson Modal ──────────────────────────────────────────────────────
-function AddLessonModal({ onClose }) {
+function AddLessonModal({ date, onClose, onCreate }) {
   const [form,setForm]=useState({class:'',topic:'',room:'',start:'08:00',end:'09:30'});
   const iSt={width:'100%',padding:'9px 12px',borderRadius:'var(--r-md)',fontSize:'13px',border:'1px solid var(--border)',background:'var(--bg-input)',color:'var(--text-1)',boxSizing:'border-box'};
   return (
@@ -376,7 +397,101 @@ function AddLessonModal({ onClose }) {
         ))}
         <div style={{display:'flex',gap:'10px',justifyContent:'flex-end',marginTop:'22px'}}>
           <button onClick={onClose} style={{padding:'9px 18px',border:'1px solid var(--border)',background:'var(--bg-card)',borderRadius:'var(--r-md)',cursor:'pointer',fontSize:'13px',color:'var(--text-2)',fontWeight:'500'}}>Abbrechen</button>
-          <button onClick={()=>{window.showToast('✓ Stunde erstellt');onClose();}} style={{padding:'9px 20px',background:'var(--accent)',color:'var(--accent-fg)',border:'none',borderRadius:'var(--r-md)',cursor:'pointer',fontSize:'13px',fontWeight:'700',boxShadow:'0 2px 8px oklch(from var(--accent) l c h / 0.35)'}}>Erstellen</button>
+          <button onClick={()=>{
+            if(!form.class || !form.topic) return window.showToast('Bitte Klasse und Thema ausfüllen');
+            onCreate(date, form);
+            window.showToast('✓ Stunde erstellt');
+            onClose();
+          }} style={{padding:'9px 20px',background:'var(--accent)',color:'var(--accent-fg)',border:'none',borderRadius:'var(--r-md)',cursor:'pointer',fontSize:'13px',fontWeight:'700',boxShadow:'0 2px 8px oklch(from var(--accent) l c h / 0.35)'}}>Erstellen</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+async function importWebUntisIcalUrl(url) {
+  function unfoldICS(text) {
+    return text.replace(/\r\n[ \t]/g, '');
+  }
+  function iCalDateToParts(v) {
+    const raw = v.includes(':') ? v.split(':').slice(1).join(':') : v;
+    const m = raw.match(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})/);
+    if (!m) return null;
+    return { y: m[1], mo: m[2], d: m[3], hh: m[4], mm: m[5] };
+  }
+  function parseICS(icsText) {
+    const rows = unfoldICS(icsText).split(/\r?\n/);
+    const events = [];
+    let cur = null;
+    rows.forEach(line => {
+      if (line === 'BEGIN:VEVENT') cur = {};
+      else if (line === 'END:VEVENT') { if (cur && cur.dtstart && cur.dtend) events.push(cur); cur = null; }
+      else if (cur) {
+        if (line.startsWith('DTSTART')) cur.dtstart = line;
+        else if (line.startsWith('DTEND')) cur.dtend = line;
+        else if (line.startsWith('SUMMARY')) cur.summary = line.split(':').slice(1).join(':').trim();
+        else if (line.startsWith('LOCATION')) cur.location = line.split(':').slice(1).join(':').trim();
+        else if (line.startsWith('DESCRIPTION')) cur.description = line.split(':').slice(1).join(':').trim();
+      }
+    });
+    return events.map(e => {
+      const s = iCalDateToParts(e.dtstart);
+      const t = iCalDateToParts(e.dtend);
+      if (!s || !t) return null;
+      return {
+        dateKey: `${s.y}-${s.mo}-${s.d}`,
+        start: `${s.hh}:${s.mm}`,
+        end: `${t.hh}:${t.mm}`,
+        title: e.summary || 'Unterricht',
+        room: e.location || '',
+        topic: e.description || '',
+        type: 'lesson',
+      };
+    }).filter(Boolean);
+  }
+
+  const res = await fetch(url);
+  const txt = await res.text();
+  const parsed = parseICS(txt);
+  const nextEvents = {};
+  let nextId = window.LocalStore.nextEventId();
+  parsed.forEach(p => {
+    if (!nextEvents[p.dateKey]) nextEvents[p.dateKey] = [];
+    nextEvents[p.dateKey].push({ ...p, id: nextId++ });
+  });
+  window.LocalStore.saveEvents(nextEvents);
+  window.LocalStore.saveWebUntisUrl(url);
+  return parsed.length;
+}
+
+function WebUntisImportModal({ onClose, onImported, rerender }) {
+  const [url, setUrl] = useState(window.LocalStore.loadWebUntisUrl());
+  const [loading, setLoading] = useState(false);
+
+  async function runImport() {
+    if (!url) return window.showToast('Bitte WebUntis iCal-Link einfügen');
+    setLoading(true);
+    try {
+      const count = await importWebUntisIcalUrl(url);
+      rerender();
+      onImported(count);
+      onClose();
+    } catch {
+      window.showToast('Import fehlgeschlagen. Prüfe den Link.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div onClick={onClose} style={{position:'fixed',inset:0,background:'var(--bg-modal)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,backdropFilter:'blur(4px)'}}>
+      <div onClick={e=>e.stopPropagation()} className="modal-enter" style={{background:'var(--bg-card)',borderRadius:'var(--r-xl)',padding:'24px',width:'560px',boxShadow:'var(--shadow-modal)',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:'18px',fontWeight:'800',marginBottom:'8px',color:'var(--text-1)'}}>WebUntis verbinden</div>
+        <div style={{fontSize:'12.5px', color:'var(--text-3)', marginBottom:'12px'}}>Füge deinen WebUntis iCal-Link ein. Die Stunden werden lokal gespeichert.</div>
+        <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://...webuntis...ics" style={{width:'100%',padding:'9px 12px',borderRadius:'var(--r-md)',fontSize:'13px',border:'1px solid var(--border)',background:'var(--bg-input)',color:'var(--text-1)',boxSizing:'border-box'}} />
+        <div style={{display:'flex',gap:'10px',justifyContent:'flex-end',marginTop:'16px'}}>
+          <button onClick={onClose} style={{padding:'9px 18px',border:'1px solid var(--border)',background:'var(--bg-card)',borderRadius:'var(--r-md)',cursor:'pointer',fontSize:'13px',color:'var(--text-2)',fontWeight:'500'}}>Abbrechen</button>
+          <button onClick={runImport} style={{padding:'9px 20px',background:'var(--accent)',color:'var(--accent-fg)',border:'none',borderRadius:'var(--r-md)',cursor:'pointer',fontSize:'13px',fontWeight:'700'}}>{loading ? 'Importiere…' : 'Jetzt importieren'}</button>
         </div>
       </div>
     </div>
@@ -385,10 +500,31 @@ function AddLessonModal({ onClose }) {
 
 // ── CalendarView ──────────────────────────────────────────────────────────
 function CalendarView({ calTab, onCalTabChange }) {
-  const [date,setDate]=useState(new Date('2026-04-28'));
+  const [date,setDate]=useState(new Date());
   const [selEvent,setSelEvent]=useState(null);
   const [addModal,setAddModal]=useState(false);
+  const [addDate,setAddDate]=useState(new Date());
+  const [importModal, setImportModal] = useState(false);
+  const [,setVersion] = useState(0);
   const monthNames=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  const bump = () => setVersion(v => v + 1);
+  useEffect(() => {
+    const savedUrl = window.LocalStore.loadWebUntisUrl();
+    if (!savedUrl) return;
+    let active = true;
+    (async () => {
+      try {
+        const count = await importWebUntisIcalUrl(savedUrl);
+        if (!active) return;
+        bump();
+        window.showToast(`✓ Auto-Sync: ${count} WebUntis-Stunden aktualisiert`);
+      } catch {
+        if (!active) return;
+        window.showToast('Auto-Sync fehlgeschlagen');
+      }
+    })();
+    return () => { active = false; };
+  }, []);
 
   function headerTitle() {
     if(calTab==='today')return date.toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
@@ -409,9 +545,29 @@ function CalendarView({ calTab, onCalTabChange }) {
     else d.setFullYear(d.getFullYear()+dir);
     setDate(d);
   }
+  function handleCreateLesson(dayDate, form) {
+    const dateKey = toKey(dayDate);
+    const cls = AppData.classes.find(c => c.name === form.class);
+    window.LocalStore.addEvent(dateKey, {
+      id: window.LocalStore.nextEventId(),
+      start: form.start,
+      end: form.end,
+      title: form.class,
+      classId: cls ? cls.id : null,
+      room: form.room || '',
+      topic: form.topic,
+      type: 'lesson',
+    });
+    bump();
+  }
+  function handleDeleteLesson(eventId) {
+    window.LocalStore.removeEventById(eventId);
+    bump();
+  }
 
-  const NavBtn=({label,style={}})=>(
+  const NavBtn=({label,style={},onClick})=>(
     <button style={{background:'var(--bg-card)',border:'1px solid var(--border)',borderRadius:'var(--r-md)',width:'30px',height:'30px',cursor:'pointer',fontSize:'16px',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text-2)',transition:'background 0.12s, transform 0.1s',...style}}
+      onClick={onClick}
       onMouseEnter={e=>{e.currentTarget.style.background='var(--bg-hover)';e.currentTarget.style.transform='scale(1.1)';}}
       onMouseLeave={e=>{e.currentTarget.style.background='var(--bg-card)';e.currentTarget.style.transform='none';}}
     >{label}</button>
@@ -427,7 +583,8 @@ function CalendarView({ calTab, onCalTabChange }) {
             <NavBtn label="›" onClick={()=>navigate(1)}/>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-            <button onClick={()=>{setDate(new Date('2026-04-28'));onCalTabChange('today');}} style={{
+            <button onClick={()=>setImportModal(true)} style={{padding:'5px 12px',background:'var(--bg-card)',border:'1px solid var(--border)',borderRadius:'var(--r-md)',fontSize:'12px',fontWeight:'700',color:'var(--text-2)',cursor:'pointer'}}>WebUntis Sync</button>
+            <button onClick={()=>{setDate(new Date());onCalTabChange('today');}} style={{
               padding:'5px 14px',background:'var(--accent-bg)',border:'none',borderRadius:'var(--r-md)',
               fontSize:'12px',fontWeight:'700',color:'var(--accent-text)',cursor:'pointer',
             }}>Heute</button>
@@ -447,13 +604,14 @@ function CalendarView({ calTab, onCalTabChange }) {
         </div>
       </div>
       <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
-        {calTab==='today'&&<DayView date={date} onEventClick={setSelEvent} onAddLesson={()=>setAddModal(true)}/>}
+        {calTab==='today'&&<DayView date={date} onEventClick={setSelEvent} onAddLesson={(d)=>{setAddDate(d);setAddModal(true);}}/>}
         {calTab==='week' &&<WeekView date={date} onEventClick={setSelEvent}/>}
         {calTab==='month'&&<MonthView date={date} onDayClick={d=>{setDate(d);onCalTabChange('today');}}/>}
         {calTab==='year' &&<YearView date={date} onMonthClick={d=>{setDate(d);onCalTabChange('month');}}/>}
       </div>
-      {selEvent&&<EventModal ev={selEvent} onClose={()=>setSelEvent(null)}/>}
-      {addModal&&<AddLessonModal onClose={()=>setAddModal(false)}/>}
+      {selEvent&&<EventModal ev={selEvent} onDelete={handleDeleteLesson} onClose={()=>setSelEvent(null)}/>}
+      {addModal&&<AddLessonModal date={addDate} onCreate={handleCreateLesson} onClose={()=>setAddModal(false)}/>}
+      {importModal&&<WebUntisImportModal rerender={bump} onImported={(count)=>window.showToast(`✓ ${count} WebUntis-Stunden lokal importiert`)} onClose={()=>setImportModal(false)}/>}
     </div>
   );
 }

@@ -2,18 +2,25 @@
 const { useState } = React;
 
 function CountdownView() {
-  const today = new Date('2026-04-28');
+  const [selectedHoliday, setSelectedHoliday] = useState(null);
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const dayMs = 86400000;
   const holidays = AppData.holidays.map(h => ({
     ...h, startDate: new Date(h.start), endDate: new Date(h.end),
   }));
   const upcoming = holidays.filter(h => h.startDate > today).sort((a,b) => a.startDate - b.startDate);
   const next = upcoming[0];
-  const daysLeft = next ? Math.ceil((next.startDate - today) / 86400000) : 0;
+  const daysLeft = next ? Math.ceil((new Date(next.startDate.getFullYear(), next.startDate.getMonth(), next.startDate.getDate()) - startOfToday) / dayMs) : 0;
   const schoolYearEnd = new Date('2026-07-12');
-  const daysToEnd = Math.ceil((schoolYearEnd - today) / 86400000);
-  const totalDays = Math.ceil((schoolYearEnd - new Date('2025-09-01')) / 86400000);
+  const daysToEnd = Math.ceil((schoolYearEnd - startOfToday) / dayMs);
+  const totalDays = Math.ceil((schoolYearEnd - new Date('2025-09-01')) / dayMs);
   const passedDays = totalDays - daysToEnd;
   const pct = Math.round(passedDays / totalDays * 100);
+  const showConfetti = daysLeft === 1;
+  const startsTomorrowMessage = next && daysLeft === 1
+    ? (next.name.toLowerCase().includes('ferien') ? 'Morgen beginnen die Ferien' : 'Morgen ist Feiertag')
+    : null;
 
   const hColors = [
     { grad: 'linear-gradient(135deg, oklch(0.50 0.17 250), oklch(0.52 0.17 280))', accent: 'oklch(0.50 0.17 250)' },
@@ -24,6 +31,12 @@ function CountdownView() {
 
   return (
     <div style={{ padding: '28px', maxWidth: '820px' }}>
+      {showConfetti && <ConfettiRain />}
+      {startsTomorrowMessage && (
+        <div style={{ marginBottom: '14px', background: 'var(--green-bg)', color: 'var(--green)', border: '1px solid var(--green)', borderRadius: 'var(--r-md)', padding: '10px 14px', fontSize: '13px', fontWeight: '800' }}>
+          🎉 {startsTomorrowMessage}
+        </div>
+      )}
       <h2 style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-1)', letterSpacing: '-0.4px', marginBottom: '4px' }}>Ferien-Countdown</h2>
       <p style={{ color: 'var(--text-3)', fontSize: '13.5px', marginBottom: '28px', fontWeight: '500' }}>Schuljahr 2025/2026</p>
 
@@ -34,7 +47,8 @@ function CountdownView() {
           borderRadius: 'var(--r-2xl)', padding: '32px 36px', marginBottom: '20px',
           color: '#fff', boxShadow: '0 8px 32px oklch(from var(--accent) l c h / 0.40)',
           position: 'relative', overflow: 'hidden',
-        }}>
+          cursor: 'pointer',
+        }} onClick={() => setSelectedHoliday(next)}>
           <div style={{ position: 'absolute', top: -40, right: -40, width: '200px', height: '200px', borderRadius: '50%', background: 'rgba(255,255,255,0.07)' }} />
           <div style={{ position: 'absolute', bottom: -60, right: 60, width: '160px', height: '160px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
           <div style={{ fontSize: '12px', fontWeight: '700', opacity: 0.8, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '8px' }}>Nächste Ferien</div>
@@ -42,6 +56,7 @@ function CountdownView() {
           <div style={{ fontSize: '14px', opacity: 0.85, marginBottom: '28px', fontWeight: '500' }}>
             {new Date(next.start).toLocaleDateString('de-DE', { day: 'numeric', month: 'long' })} – {new Date(next.end).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
+          <div style={{ fontSize: '12px', opacity: 0.85, fontWeight: '700', marginBottom: '10px' }}>Klicken für Vollbild-Ansicht</div>
           <div style={{ display: 'flex', gap: '16px' }}>
             {[
               { val: Math.floor(daysLeft/7), label: 'Wochen' },
@@ -74,11 +89,11 @@ function CountdownView() {
       {/* Upcoming holidays grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
         {upcoming.map((h, i) => {
-          const days = Math.ceil((h.startDate - today) / 86400000);
-          const dur  = Math.ceil((h.endDate - h.startDate) / 86400000);
+          const days = Math.ceil((new Date(h.startDate.getFullYear(), h.startDate.getMonth(), h.startDate.getDate()) - startOfToday) / dayMs);
+          const dur  = Math.ceil((h.endDate - h.startDate) / dayMs) + 1;
           const c = hColors[i % hColors.length];
           return (
-            <div key={h.name} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--r-xl)', padding: '20px 22px', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', position: 'relative' }}>
+            <div key={h.name} onClick={() => setSelectedHoliday(h)} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--r-xl)', padding: '20px 22px', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', position: 'relative', cursor: 'pointer' }}>
               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: c.grad }} />
               <div style={{ fontWeight: '700', fontSize: '14.5px', color: 'var(--text-1)', marginBottom: '5px', marginTop: '4px' }}>{h.name}</div>
               <div style={{ fontSize: '12.5px', color: 'var(--text-3)', marginBottom: '12px', fontWeight: '500' }}>
@@ -92,6 +107,62 @@ function CountdownView() {
           );
         })}
       </div>
+      {selectedHoliday && <HolidayFullscreen holiday={selectedHoliday} onClose={() => setSelectedHoliday(null)} />}
+    </div>
+  );
+}
+
+function HolidayFullscreen({ holiday, onClose }) {
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const start = new Date(holiday.start);
+  const end = new Date(holiday.end);
+  const daysLeft = Math.ceil((new Date(start.getFullYear(), start.getMonth(), start.getDate()) - startOfToday) / 86400000);
+  const duration = Math.ceil((end - start) / 86400000) + 1;
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'var(--bg-modal)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'stretch', justifyContent: 'stretch' }}>
+      <div onClick={e => e.stopPropagation()} style={{ flex: 1, background: 'linear-gradient(135deg, var(--accent), oklch(from var(--accent) calc(l + 0.05) c calc(h + 30)))', color: '#fff', padding: '52px', position: 'relative', overflow: 'hidden' }}>
+        <button onClick={onClose} style={{ position: 'absolute', top: '18px', right: '18px', width: '36px', height: '36px', borderRadius: 'var(--r-md)', border: 'none', cursor: 'pointer', background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: '16px', fontWeight: '700' }}>✕</button>
+        <div style={{ fontSize: '13px', opacity: 0.9, fontWeight: '800', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '12px' }}>Ferien-Detail</div>
+        <div style={{ fontSize: '54px', fontWeight: '900', letterSpacing: '-1px', marginBottom: '12px' }}>{holiday.name}</div>
+        <div style={{ fontSize: '22px', opacity: 0.95, marginBottom: '28px', fontWeight: '600' }}>
+          {start.toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })} – {end.toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })}
+        </div>
+        <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+          <BigStat label="Tage bis Start" value={daysLeft} />
+          <BigStat label="Dauer" value={`${duration} Tage`} />
+          <BigStat label="Starttag" value={start.toLocaleDateString('de-DE', { weekday: 'long' })} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BigStat({ label, value }) {
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', borderRadius: 'var(--r-xl)', padding: '18px 20px', minWidth: '180px' }}>
+      <div style={{ fontSize: '32px', fontWeight: '900', lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: '12px', opacity: 0.88, marginTop: '6px', fontWeight: '700' }}>{label}</div>
+    </div>
+  );
+}
+
+function ConfettiRain() {
+  const colors = ['#FFD93D', '#6BCB77', '#4D96FF', '#FF6B6B', '#C77DFF'];
+  const pieces = Array.from({ length: 70 }, (_, i) => ({
+    left: `${(i * 13) % 100}%`,
+    delay: `${(i % 12) * 0.18}s`,
+    duration: `${3 + (i % 5) * 0.45}s`,
+    color: colors[i % colors.length],
+    size: `${6 + (i % 6)}px`,
+  }));
+  return (
+    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1100 }}>
+      <style>{`@keyframes confettiFall {0%{transform:translateY(-10vh) rotate(0deg)}100%{transform:translateY(110vh) rotate(680deg)}}`}</style>
+      {pieces.map((p, i) => (
+        <span key={i} style={{ position: 'absolute', left: p.left, top: '-10vh', width: p.size, height: p.size, background: p.color, opacity: 0.9, borderRadius: '2px', animation: `confettiFall ${p.duration} linear infinite`, animationDelay: p.delay }} />
+      ))}
     </div>
   );
 }

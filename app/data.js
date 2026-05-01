@@ -1,9 +1,33 @@
-// LehrerApp – static sample data
-window.AppData = {
+// LehrerApp – static sample data (with local persistence)
+const APP_STORAGE_KEYS = {
+  materials: 'lehrerapp-materials',
+  events: 'lehrerapp-events',
+  webuntisUrl: 'lehrerapp-webuntis-ical-url',
+  rosters: 'lehrerapp-rosters',
+  classes: 'lehrerapp-classes',
+  user: 'lehrerapp-user',
+};
+
+function readLocalJSON(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeLocalJSON(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+const seedData = {
   user: {
     name: "Alberto Cabrera",
     initials: "AC",
-    email: "a.cabrera@schule.de",
+    email: "alberto.cabrera@esg.nrw.schule",
     school: "Gesamtschule am Stadtpark",
     subjects: ["Informatik", "Mathematik"],
     role: "Lehrer",
@@ -18,6 +42,11 @@ window.AppData = {
     "oklch(0.55 0.18 60)",
     "oklch(0.52 0.18 195)",
     "oklch(0.52 0.18 320)",
+    "oklch(0.58 0.14 30)",
+    "oklch(0.62 0.12 95)",
+    "oklch(0.58 0.10 235)",
+    "oklch(0.60 0.11 15)",
+    "oklch(0.62 0.09 180)",
   ],
 
   classes: [
@@ -86,10 +115,18 @@ window.AppData = {
   ],
 
   holidays: [
-    { name: "Sommerferien",      start: "2026-07-13", end: "2026-08-25" },
-    { name: "Herbstferien",      start: "2026-10-12", end: "2026-10-23" },
-    { name: "Weihnachtsferien",  start: "2026-12-23", end: "2027-01-06" },
-    { name: "Osterferien 2027",  start: "2027-04-07", end: "2027-04-18" },
+    // NRW (offizielle Ferienordnung Schulministerium NRW)
+    { name: "Weihnachtsferien 2025/26", start: "2025-12-22", end: "2026-01-06" },
+    { name: "Osterferien 2026",         start: "2026-03-30", end: "2026-04-11" },
+    { name: "Pfingstferien 2026",       start: "2026-05-26", end: "2026-05-26" },
+    { name: "Sommerferien 2026",        start: "2026-07-20", end: "2026-09-01" },
+    { name: "Herbstferien 2026",        start: "2026-10-17", end: "2026-10-31" },
+    { name: "Weihnachtsferien 2026/27", start: "2026-12-23", end: "2027-01-06" },
+    { name: "Osterferien 2027",         start: "2027-03-22", end: "2027-04-03" },
+    { name: "Pfingstferien 2027",       start: "2027-05-18", end: "2027-05-18" },
+    { name: "Sommerferien 2027",        start: "2027-07-19", end: "2027-08-31" },
+    { name: "Herbstferien 2027",        start: "2027-10-23", end: "2027-11-06" },
+    { name: "Weihnachtsferien 2027/28", start: "2027-12-24", end: "2028-01-08" },
   ],
 
   sequenzplan: [
@@ -130,4 +167,164 @@ window.AppData = {
       { m: "Jun", topic: "Jahresabschluss",            done: false },
     ]},
   ],
+};
+
+seedData.materials = readLocalJSON(APP_STORAGE_KEYS.materials, seedData.materials);
+seedData.events = readLocalJSON(APP_STORAGE_KEYS.events, seedData.events);
+seedData.rosters = readLocalJSON(APP_STORAGE_KEYS.rosters, {});
+seedData.classes = readLocalJSON(APP_STORAGE_KEYS.classes, seedData.classes);
+seedData.user = readLocalJSON(APP_STORAGE_KEYS.user, seedData.user);
+seedData.user.email = "alberto.cabrera@esg.nrw.schule";
+
+window.AppData = seedData;
+
+window.LocalStore = {
+  saveMaterials(materials) {
+    writeLocalJSON(APP_STORAGE_KEYS.materials, materials);
+  },
+  addMaterial(material) {
+    window.AppData.materials = [material, ...window.AppData.materials];
+    writeLocalJSON(APP_STORAGE_KEYS.materials, window.AppData.materials);
+  },
+  saveEvents(events) {
+    window.AppData.events = events;
+    writeLocalJSON(APP_STORAGE_KEYS.events, events);
+  },
+  addEvent(dateKey, event) {
+    if (!window.AppData.events[dateKey]) window.AppData.events[dateKey] = [];
+    window.AppData.events[dateKey].push(event);
+    writeLocalJSON(APP_STORAGE_KEYS.events, window.AppData.events);
+  },
+  removeEvent(dateKey, eventId) {
+    if (!window.AppData.events[dateKey]) return;
+    window.AppData.events[dateKey] = window.AppData.events[dateKey].filter(e => e.id !== eventId);
+    writeLocalJSON(APP_STORAGE_KEYS.events, window.AppData.events);
+  },
+  removeEventById(eventId) {
+    Object.keys(window.AppData.events).forEach(k => {
+      window.AppData.events[k] = (window.AppData.events[k] || []).filter(e => e.id !== eventId);
+    });
+    writeLocalJSON(APP_STORAGE_KEYS.events, window.AppData.events);
+  },
+  nextEventId() {
+    const all = Object.values(window.AppData.events).flat();
+    return Math.max(0, ...all.map(e => e.id || 0)) + 1;
+  },
+  saveWebUntisUrl(url) {
+    localStorage.setItem(APP_STORAGE_KEYS.webuntisUrl, url);
+  },
+  loadWebUntisUrl() {
+    return localStorage.getItem(APP_STORAGE_KEYS.webuntisUrl) || '';
+  },
+  saveRosters(rosters) {
+    window.AppData.rosters = rosters;
+    writeLocalJSON(APP_STORAGE_KEYS.rosters, rosters);
+  },
+  getRoster(classId) {
+    const raw = window.AppData.rosters[String(classId)] || [];
+    return raw.map((s, idx) => {
+      if (typeof s === 'string') {
+      return {
+        id: Date.now() + idx,
+        familienname: s,
+        vorname: '',
+        klasse: '',
+        spitzname: '',
+        geschlecht: '',
+        besonderheiten: '',
+      };
+      }
+      return s;
+    });
+  },
+  addStudent(classId, studentName) {
+    const k = String(classId);
+    if (!window.AppData.rosters[k]) window.AppData.rosters[k] = [];
+    const clean = (studentName || '').trim();
+    if (!clean) return false;
+    window.AppData.rosters[k].push({ id: Date.now() + Math.random(), name: clean });
+    const cls = window.AppData.classes.find(c => c.id === classId);
+    if (cls) cls.students = window.AppData.rosters[k].length;
+    writeLocalJSON(APP_STORAGE_KEYS.rosters, window.AppData.rosters);
+    return true;
+  },
+  addStudentRecord(classId, record) {
+    const k = String(classId);
+    if (!window.AppData.rosters[k]) window.AppData.rosters[k] = [];
+    window.AppData.rosters[k].push({ id: Date.now() + Math.random(), ...record });
+    const cls = window.AppData.classes.find(c => c.id === classId);
+    if (cls) cls.students = window.AppData.rosters[k].length;
+    writeLocalJSON(APP_STORAGE_KEYS.rosters, window.AppData.rosters);
+    return true;
+  },
+  importStudents(classId, names) {
+    const k = String(classId);
+    const clean = (names || []).map(n => (n || '').trim()).filter(Boolean);
+    window.AppData.rosters[k] = clean.map((name, i) => ({ id: Date.now() + i, name }));
+    const cls = window.AppData.classes.find(c => c.id === classId);
+    if (cls) cls.students = clean.length;
+    writeLocalJSON(APP_STORAGE_KEYS.rosters, window.AppData.rosters);
+    return clean.length;
+  },
+  importStudentRecords(classId, records) {
+    const k = String(classId);
+    const clean = (records || []).filter(Boolean).map((r, i) => ({
+      id: Date.now() + i,
+      familienname: (r.familienname || '').trim(),
+      vorname: (r.vorname || '').trim(),
+      klasse: (r.klasse || '').trim(),
+      spitzname: (r.spitzname || '').trim(),
+      geschlecht: (r.geschlecht || '').trim(),
+      besonderheiten: (r.besonderheiten || '').trim(),
+    })).filter(r => r.familienname || r.vorname);
+    window.AppData.rosters[k] = clean;
+    const cls = window.AppData.classes.find(c => c.id === classId);
+    if (cls) cls.students = clean.length;
+    writeLocalJSON(APP_STORAGE_KEYS.rosters, window.AppData.rosters);
+    return clean.length;
+  },
+  updateStudentRecord(classId, studentId, patch) {
+    const k = String(classId);
+    const list = window.AppData.rosters[k] || [];
+    window.AppData.rosters[k] = list.map(s => s.id === studentId ? { ...s, ...patch } : s);
+    writeLocalJSON(APP_STORAGE_KEYS.rosters, window.AppData.rosters);
+  },
+  deleteStudentRecord(classId, studentId) {
+    const k = String(classId);
+    const list = window.AppData.rosters[k] || [];
+    window.AppData.rosters[k] = list.filter(s => s.id !== studentId);
+    const cls = window.AppData.classes.find(c => c.id === classId);
+    if (cls) cls.students = window.AppData.rosters[k].length;
+    writeLocalJSON(APP_STORAGE_KEYS.rosters, window.AppData.rosters);
+  },
+  saveClasses(classes) {
+    window.AppData.classes = classes;
+    writeLocalJSON(APP_STORAGE_KEYS.classes, classes);
+  },
+  getClasses() {
+    return Array.isArray(window.AppData.classes) ? window.AppData.classes : [];
+  },
+  addClass(newClass) {
+    const nextId = Math.max(0, ...window.AppData.classes.map(c => c.id || 0)) + 1;
+    const classObj = { ...newClass, id: nextId };
+    window.AppData.classes.push(classObj);
+    writeLocalJSON(APP_STORAGE_KEYS.classes, window.AppData.classes);
+    return classObj;
+  },
+  deleteClass(classId) {
+    window.AppData.classes = window.AppData.classes.filter(c => c.id !== classId);
+    Object.keys(window.AppData.events).forEach(k => {
+      window.AppData.events[k] = (window.AppData.events[k] || []).filter(e => e.classId !== classId);
+    });
+    window.AppData.materials = window.AppData.materials.filter(m => m.classId !== classId);
+    delete window.AppData.rosters[String(classId)];
+    writeLocalJSON(APP_STORAGE_KEYS.classes, window.AppData.classes);
+    writeLocalJSON(APP_STORAGE_KEYS.events, window.AppData.events);
+    writeLocalJSON(APP_STORAGE_KEYS.materials, window.AppData.materials);
+    writeLocalJSON(APP_STORAGE_KEYS.rosters, window.AppData.rosters);
+  },
+  saveUser(user) {
+    window.AppData.user = { ...window.AppData.user, ...user };
+    writeLocalJSON(APP_STORAGE_KEYS.user, window.AppData.user);
+  },
 };
