@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LehrerApp</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet" />
+
+  <!-- Anti-flash: apply saved theme before render -->
+  <script>
+    (function() {
+      var t = localStorage.getItem('lehrerapp-theme') ||
+        (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+
+  <style>
+    /* ─── CSS Variable System ───────────────────────────────────────────── */
+    :root {
+      /* Backgrounds */
+      --bg-app:       oklch(0.965 0.006 245);
+      --bg-card:      #ffffff;
+      --bg-sidebar:   #ffffff;
+      --bg-active:    oklch(0.930 0.050 250);
+      --bg-hover:     oklch(0.960 0.020 250);
+      --bg-input:     #ffffff;
+      --bg-subtle:    oklch(0.970 0.004 245);
+      --bg-modal:     rgba(15, 15, 30, 0.45);
+
+      /* Borders */
+      --border:       oklch(0.895 0.008 245);
+      --border-light: oklch(0.940 0.005 245);
+
+      /* Text */
+      --text-1:       oklch(0.150 0.025 250);
+      --text-2:       oklch(0.400 0.018 250);
+      --text-3:       oklch(0.610 0.012 250);
+
+      /* Accent (blue) */
+      --accent:       oklch(0.500 0.170 250);
+      --accent-h:     oklch(0.450 0.180 250);
+      --accent-fg:    #ffffff;
+      --accent-bg:    oklch(0.930 0.050 250);
+      --accent-text:  oklch(0.380 0.170 250);
+
+      /* Status colours */
+      --green:        oklch(0.520 0.160 155);
+      --green-bg:     oklch(0.940 0.050 155);
+      --amber:        oklch(0.620 0.160  60);
+      --amber-bg:     oklch(0.950 0.060  60);
+      --red:          oklch(0.520 0.180  25);
+      --red-bg:       oklch(0.950 0.050  25);
+      --purple:       oklch(0.520 0.180 290);
+      --purple-bg:    oklch(0.940 0.050 290);
+
+      /* Shadows */
+      --shadow-xs:    0 1px 2px rgba(0,0,0,0.05);
+      --shadow-sm:    0 1px 4px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04);
+      --shadow-md:    0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+      --shadow-lg:    0 16px 48px rgba(0,0,0,0.11), 0 4px 16px rgba(0,0,0,0.06);
+      --shadow-modal: 0 24px 64px rgba(0,0,0,0.14), 0 8px 24px rgba(0,0,0,0.08);
+
+      /* Radii */
+      --r-sm:  6px;
+      --r-md:  10px;
+      --r-lg:  14px;
+      --r-xl:  18px;
+      --r-2xl: 24px;
+    }
+
+    [data-theme="dark"] {
+      --bg-app:       oklch(0.110 0.020 252);
+      --bg-card:      oklch(0.170 0.025 252);
+      --bg-sidebar:   oklch(0.135 0.022 253);
+      --bg-active:    oklch(0.235 0.060 252);
+      --bg-hover:     oklch(0.200 0.030 252);
+      --bg-input:     oklch(0.205 0.026 252);
+      --bg-subtle:    oklch(0.155 0.022 252);
+      --bg-modal:     rgba(5, 5, 15, 0.65);
+
+      --border:       oklch(0.275 0.026 252);
+      --border-light: oklch(0.225 0.022 252);
+
+      --text-1:       oklch(0.930 0.007 240);
+      --text-2:       oklch(0.680 0.012 245);
+      --text-3:       oklch(0.500 0.010 245);
+
+      --accent:       oklch(0.600 0.170 250);
+      --accent-h:     oklch(0.650 0.170 250);
+      --accent-fg:    #ffffff;
+      --accent-bg:    oklch(0.235 0.070 252);
+      --accent-text:  oklch(0.750 0.140 250);
+
+      --green:        oklch(0.620 0.160 155);
+      --green-bg:     oklch(0.200 0.060 155);
+      --amber:        oklch(0.720 0.150  60);
+      --amber-bg:     oklch(0.220 0.060  60);
+      --red:          oklch(0.620 0.170  25);
+      --red-bg:       oklch(0.210 0.060  25);
+      --purple:       oklch(0.650 0.180 290);
+      --purple-bg:    oklch(0.220 0.060 290);
+
+      --shadow-xs:    0 1px 2px rgba(0,0,0,0.30);
+      --shadow-sm:    0 1px 4px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.22);
+      --shadow-md:    0 4px 16px rgba(0,0,0,0.40), 0 2px 6px rgba(0,0,0,0.25);
+      --shadow-lg:    0 16px 48px rgba(0,0,0,0.50), 0 4px 16px rgba(0,0,0,0.30);
+      --shadow-modal: 0 24px 64px rgba(0,0,0,0.60), 0 8px 24px rgba(0,0,0,0.40);
+    }
+
+    /* ─── Reset & Base ──────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; overflow: hidden; }
+
+    body {
+      font-family: 'Figtree', system-ui, sans-serif;
+      background: var(--bg-app);
+      color: var(--text-1);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    /* Smooth theme transitions */
+    body, body * {
+      transition:
+        background-color 0.22s ease,
+        border-color     0.22s ease,
+        color            0.18s ease,
+        box-shadow       0.22s ease,
+        fill             0.18s ease;
+    }
+    /* Exempt elements that shouldn't transition */
+    .no-transition, .no-transition * { transition: none !important; }
+
+    /* ─── Scrollbar ─────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar          { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track    { background: transparent; }
+    ::-webkit-scrollbar-thumb    { background: var(--border); border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+    /* ─── Typography helpers ────────────────────────────────────────────── */
+    button, input, select, textarea { font-family: inherit; }
+    input, select, textarea {
+      background: var(--bg-input);
+      color: var(--text-1);
+      border: 1px solid var(--border);
+      outline: none;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent) !important;
+      box-shadow: 0 0 0 3px var(--accent-bg) !important;
+    }
+    ::placeholder { color: var(--text-3); }
+    option { background: var(--bg-card); color: var(--text-1); }
+
+    /* ─── Keyframe Animations ───────────────────────────────────────────── */
+    @keyframes viewEnter {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0);    }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px) scale(0.98); }
+      to   { opacity: 1; transform: translateY(0)    scale(1);    }
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.5; }
+    }
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position:  400px 0; }
+    }
+
+    .view-enter   { animation: viewEnter  0.28s cubic-bezier(0.4, 0, 0.2, 1) both; }
+    .modal-enter  { animation: slideUp    0.25s cubic-bezier(0.4, 0, 0.2, 1) both; }
+    .fade-in      { animation: fadeIn     0.20s ease both; }
+
+    /* ─── Interactive elements ──────────────────────────────────────────── */
+    button { cursor: pointer; }
+
+    /* Nav button hover (used by Sidebar) */
+    .nav-btn {
+      position: relative;
+      overflow: hidden;
+      transition: background 0.14s, color 0.14s, transform 0.12s !important;
+    }
+    .nav-btn:active { transform: scale(0.97); }
+
+    /* Card hover lift */
+    .card-hover {
+      transition: box-shadow 0.2s, transform 0.2s !important;
+    }
+    .card-hover:hover {
+      box-shadow: var(--shadow-md) !important;
+      transform: translateY(-2px);
+    }
+
+    /* ─── Dark mode toggle button ───────────────────────────────────────── */
+    #theme-toggle {
+      width: 36px; height: 36px;
+      border-radius: var(--r-md);
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, transform 0.12s !important;
+    }
+    #theme-toggle:hover { background: var(--bg-hover); transform: scale(1.08); }
+    #theme-toggle:active { transform: scale(0.95); }
+
+    /* ─── Skeleton loader ───────────────────────────────────────────────── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--border-light) 25%, var(--bg-hover) 50%, var(--border-light) 75%);
+      background-size: 400px 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: var(--r-sm);
+    }
+
+    /* ─── Toast ─────────────────────────────────────────────────────────── */
+    #toast-container {
+      position: fixed; bottom: 24px; right: 24px;
+      display: flex; flex-direction: column; gap: 8px;
+      z-index: 9999; pointer-events: none;
+    }
+    .toast {
+      background: var(--text-1);
+      color: var(--bg-card);
+      padding: 10px 18px;
+      border-radius: var(--r-lg);
+      font-size: 13px; font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      animation: slideUp 0.22s ease both;
+      opacity: 1;
+      transition: opacity 0.3s;
+    }
+
+    /* ─── Misc ──────────────────────────────────────────────────────────── */
+    hr { border: none; border-top: 1px solid var(--border); }
+
+    /* Responsive: hide sidebar on small screens */
+    @media (max-width: 768px) {
+      #sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="toast-container"></div>
+
+  <!-- React + Babel -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <!-- Global helpers (plain JS) -->
+  <script>
+    // Toast utility
+    window.showToast = function(msg, duration = 2400) {
+      const c = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      el.className = 'toast';
+      el.textContent = msg;
+      c.appendChild(el);
+      setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 320); }, duration);
+    };
+
+    // Dark mode toggle
+    window.toggleTheme = function() {
+      const html = document.documentElement;
+      const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      localStorage.setItem('lehrerapp-theme', next);
+      return next;
+    };
+    window.getTheme = function() {
+      return document.documentElement.getAttribute('data-theme');
+    };
+  </script>
+
+  <!-- Data -->
+  <script src="app/data.js"></script>
+
+  <!-- Tweaks panel -->
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+
+  <!-- Components (order matters) -->
+  <script type="text/babel" src="app/Sidebar.jsx"></script>
+  <script type="text/babel" src="app/CalendarView.jsx"></script>
+  <script type="text/babel" src="app/PlanningView.jsx"></script>
+  <script type="text/babel" src="app/OtherViews.jsx"></script>
+  <script type="text/babel" src="app/AIToolsView.jsx"></script>
+  <script type="text/babel" src="app/App.jsx"></script>
+
+  <!-- Bootstrap -->
+  <script type="text/babel">
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "accentHue": 250,
+      "compactMode": false
+    }/*EDITMODE-END*/;
+
+    const { useTweaks, TweaksPanel, TweakSection, TweakSlider, TweakToggle } = window;
+
+    function Root() {
+      const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+      React.useEffect(() => {
+        // Apply hue-shifted accent
+        const h = tweaks.accentHue;
+        const vars = {
+          '--accent':      `oklch(0.500 0.170 ${h})`,
+          '--accent-h':    `oklch(0.450 0.180 ${h})`,
+          '--accent-bg':   `oklch(0.930 0.050 ${h})`,
+          '--accent-text': `oklch(0.380 0.170 ${h})`,
+        };
+        Object.entries(vars).forEach(([k,v]) => document.documentElement.style.setProperty(k, v));
+      }, [tweaks.accentHue]);
+
+      return (
+        <>
+          <App />
+          <TweaksPanel>
+            <TweakSection title="Akzentfarbe">
+              <TweakSlider label="Farbton" k="accentHue" min={0} max={360} step={5} tweaks={tweaks} setTweak={setTweak} />
+            </TweakSection>
+            <TweakSection title="Layout">
+              <TweakToggle label="Kompaktmodus" k="compactMode" tweaks={tweaks} setTweak={setTweak} />
+            </TweakSection>
+          </TweaksPanel>
+        </>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<Root />);
+  </script>
+</body>
+</html>
