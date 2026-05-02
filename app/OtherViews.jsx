@@ -119,7 +119,8 @@ function ClassesView({ onNavigate }) {
   const [newClass, setNewClass] = useState({ name: '', subject: '', room: '', students: '0', colorIdx: 0 });
   const [, setVersion] = useState(0);
   const importRef = useRef(null);
-  const { classes, classColors } = AppData;
+  const classes = Array.isArray(AppData.classes) ? AppData.classes : [];
+  const classColors = Array.isArray(AppData.classColors) ? AppData.classColors : ['oklch(0.52 0.18 250)'];
   function moveClass(dragId, targetId) {
     if (!dragId || !targetId || dragId === targetId) return;
     const arr = [...(AppData.classes || [])];
@@ -172,7 +173,9 @@ function ClassesView({ onNavigate }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h2 style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-1)', letterSpacing: '-0.4px', marginBottom: '4px' }}>Alle Klassen & Kurse</h2>
-          <p style={{ color: 'var(--text-3)', fontSize: '13.5px', fontWeight: '500' }}>{classes.length} Klassen · {classes.reduce((s, c) => s + c.students, 0)} Schüler:innen gesamt</p>
+          <p style={{ color: 'var(--text-3)', fontSize: '13.5px', fontWeight: '500' }}>
+            {classes.length} Klassen · {classes.reduce((s, c) => s + (Number((c && c.students) || 0) || 0), 0)} Schüler:innen gesamt
+          </p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <Btn variant="secondary" onClick={exportBackup}>Backup exportieren</Btn>
@@ -193,38 +196,45 @@ function ClassesView({ onNavigate }) {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(268px,1fr))', gap: '14px' }}>
-        {classes.map(cls => {
-          const color = classColors[cls.colorIdx];
-          const events = Object.values(AppData.events).flat().filter(e => e.classId === cls.id);
-          const mats   = AppData.materials.filter(m => m.classId === cls.id);
+        {classes.map((cls, idx) => {
+          const safeCls = cls && typeof cls === 'object' ? cls : {};
+          const clsId = Number(safeCls.id) || idx + 1;
+          const clsName = String(safeCls.name || `Klasse ${clsId}`);
+          const clsYear = Number.isFinite(Number(safeCls.year)) ? Number(safeCls.year) : null;
+          const clsStudents = Number(safeCls.students) || 0;
+          const clsSubject = String(safeCls.subject || 'Fach');
+          const clsRoom = String(safeCls.room || '—');
+          const color = classColors[Number(safeCls.colorIdx) || 0] || classColors[0];
+          const events = Object.values(AppData.events || {}).flat().filter(e => e && e.classId === clsId);
+          const mats   = (Array.isArray(AppData.materials) ? AppData.materials : []).filter(m => m && m.classId === clsId);
           return (
             <window.UI.Card
-              key={cls.id}
+              key={clsId}
               draggable
               onDragStart={(e) => {
-                setDragClassId(cls.id);
+                setDragClassId(clsId);
                 e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/plain', String(cls.id));
+                e.dataTransfer.setData('text/plain', String(clsId));
               }}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault();
                 const id = Number(e.dataTransfer.getData('text/plain')) || dragClassId;
-                moveClass(id, cls.id);
+                moveClass(id, clsId);
                 setDragClassId(null);
               }}
               onDragEnd={() => setDragClassId(null)}
-              onClick={() => onNavigate('class-' + cls.id)}
+              onClick={() => onNavigate('class-' + clsId)}
               onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                setEditClass({ ...cls });
+                setEditClass({ ...safeCls, id: clsId, name: clsName, year: clsYear, students: clsStudents, subject: clsSubject, room: clsRoom });
               }}
               className="card-hover"
               style={{
               padding: '22px', cursor: 'pointer', overflow: 'hidden', position: 'relative',
               transition: 'transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease',
-              opacity: dragClassId === cls.id ? 0.6 : 1,
+              opacity: dragClassId === clsId ? 0.6 : 1,
             }}
               onMouseEnter={e => {
                 e.currentTarget.style.transform = 'translateY(-8px)';
@@ -244,14 +254,14 @@ function ClassesView({ onNavigate }) {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   boxShadow: `0 3px 10px ${color}44`,
                 }}>
-                  <span style={{ color: '#fff', fontSize: '16px', fontWeight: '900' }}>{cls.name.slice(0, 2).toUpperCase()}</span>
+                  <span style={{ color: '#fff', fontSize: '16px', fontWeight: '900' }}>{clsName.slice(0, 2).toUpperCase()}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '11px', background: 'var(--accent-bg)', color: 'var(--accent-text)', padding: '3px 10px', borderRadius: 'var(--r-full)', fontWeight: '700' }}>
-                    {cls.year ? `Jg. ${cls.year}` : 'Kurs'}
+                    {clsYear ? `Jg. ${clsYear}` : 'Kurs'}
                   </span>
                   <button
-                    onClick={(e) => { e.stopPropagation(); setEditClass({ ...cls }); }}
+                    onClick={(e) => { e.stopPropagation(); setEditClass({ ...safeCls, id: clsId, name: clsName, year: clsYear, students: clsStudents, subject: clsSubject, room: clsRoom }); }}
                     style={{ padding: '5px 9px', borderRadius: 'var(--r-md)', border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-2)', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}
                   >
                     Bearbeiten
@@ -264,34 +274,34 @@ function ClassesView({ onNavigate }) {
                   if (e.button === 2) {
                     e.preventDefault();
                     e.stopPropagation();
-                    setEditClass({ ...cls });
+                    setEditClass({ ...safeCls, id: clsId, name: clsName, year: clsYear, students: clsStudents, subject: clsSubject, room: clsRoom });
                   }
                 }}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  setEditClass({ ...cls });
+                  setEditClass({ ...safeCls, id: clsId, name: clsName, year: clsYear, students: clsStudents, subject: clsSubject, room: clsRoom });
                 }}
                 onDoubleClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  setEditClass({ ...cls });
+                  setEditClass({ ...safeCls, id: clsId, name: clsName, year: clsYear, students: clsStudents, subject: clsSubject, room: clsRoom });
                 }}
                 title="Rechtsklick oder Doppelklick zum Umbenennen"
                 style={{ fontWeight: '800', fontSize: '16px', color: 'var(--text-1)', marginBottom: '3px', letterSpacing: '-0.2px' }}
               >
-                {cls.name}
+                {clsName}
               </div>
-              <div style={{ fontSize: '12.5px', color: 'var(--text-3)', marginBottom: '16px', fontWeight: '500' }}>{cls.subject} · {cls.room}</div>
+              <div style={{ fontSize: '12.5px', color: 'var(--text-3)', marginBottom: '16px', fontWeight: '500' }}>{clsSubject} · {clsRoom}</div>
               <div style={{ display: 'flex', gap: '0', borderTop: '1px solid var(--border-light)', paddingTop: '12px' }}>
-                {[['👥', cls.students, 'SuS'], ['📅', events.length, 'Stunden'], ['📄', mats.length, 'Materialien']].map(([icon, val, label], i) => (
+                {[['👥', clsStudents, 'SuS'], ['📅', events.length, 'Stunden'], ['📄', mats.length, 'Materialien']].map(([icon, val, label], i) => (
                   <div key={label} style={{ flex: 1, textAlign: 'center', borderLeft: i > 0 ? '1px solid var(--border-light)' : 'none' }}>
                     <div style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-1)' }}>{val}</div>
                     <div style={{ fontSize: '10.5px', color: 'var(--text-3)', fontWeight: '500' }}>{label}</div>
                   </div>
                 ))}
               </div>
-              {expandedClassId === cls.id && (
+              {expandedClassId === clsId && (
                 <div style={{ marginTop: '12px', borderTop: '1px solid var(--border-light)', paddingTop: '10px' }}>
                   <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-3)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '6px' }}>Inhalt</div>
                   <div style={{ fontSize: '12px', color: 'var(--text-2)', marginBottom: '4px', fontWeight: '600' }}>Nächste Stunden:</div>
@@ -305,7 +315,7 @@ function ClassesView({ onNavigate }) {
                   )}
                   <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
                     <button
-                      onClick={(e) => { e.stopPropagation(); onNavigate('class-' + cls.id); }}
+                      onClick={(e) => { e.stopPropagation(); onNavigate('class-' + clsId); }}
                       style={{ padding: '6px 10px', borderRadius: 'var(--r-md)', border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-2)', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
                     >
                       Öffnen
@@ -329,7 +339,7 @@ function ClassesView({ onNavigate }) {
             <div style={{ marginBottom: '14px' }}>
               <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-3)', display: 'block', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Klassenfarbe</label>
               <select value={newClass.colorIdx} onChange={e => setNewClass(p => ({ ...p, colorIdx: Number(e.target.value) }))} style={iSt}>
-                {AppData.classColors.map((col, idx) => (
+                {classColors.map((col, idx) => (
                   <option key={idx} value={idx}>{CLASS_COLOR_NAMES_DE[idx] || `Farbe ${idx + 1}`}</option>
                 ))}
               </select>
@@ -358,12 +368,12 @@ function ClassesView({ onNavigate }) {
             <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-1)', letterSpacing: '-0.3px', marginBottom: '20px' }}>Klasse bearbeiten</div>
             <div style={{ marginBottom: '14px' }}>
               <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-3)', display: 'block', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Klassenname</label>
-              <input value={editClass.name || ''} onChange={(e)=>setEditClass(p=>({...p,name:e.target.value}))} style={iSt} />
+              <input value={editClass?.name || ''} onChange={(e)=>setEditClass(p => ({ ...(p || {}), name: e.target.value }))} style={iSt} />
             </div>
             <div style={{ marginBottom: '14px' }}>
               <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-3)', display: 'block', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Klassenfarbe</label>
-              <select value={editClass.colorIdx ?? 0} onChange={(e)=>setEditClass(p=>({...p,colorIdx:Number(e.target.value)}))} style={iSt}>
-                {AppData.classColors.map((col, idx) => (
+              <select value={editClass?.colorIdx ?? 0} onChange={(e)=>setEditClass(p => ({ ...(p || {}), colorIdx: Number(e.target.value) }))} style={iSt}>
+                {classColors.map((col, idx) => (
                   <option key={idx} value={idx}>{CLASS_COLOR_NAMES_DE[idx] || `Farbe ${idx + 1}`}</option>
                 ))}
               </select>
@@ -371,8 +381,8 @@ function ClassesView({ onNavigate }) {
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '22px' }}>
               <Btn variant="secondary" onClick={() => setEditClass(null)}>Abbrechen</Btn>
               <Btn onClick={() => {
-                if (!editClass.name.trim()) return window.showToast('Klassenname fehlt');
-                const next = AppData.classes.map(c => c.id === editClass.id ? { ...c, name: editClass.name.trim(), colorIdx: Number(editClass.colorIdx ?? 0) } : c);
+                if (!editClass || !String(editClass.name || '').trim()) return window.showToast('Klassenname fehlt');
+                const next = classes.map(c => c.id === editClass.id ? { ...c, name: String(editClass.name).trim(), colorIdx: Number(editClass.colorIdx ?? 0) } : c);
                 window.LocalStore.saveClasses(next);
                 setVersion(v => v + 1);
                 setEditClass(null);

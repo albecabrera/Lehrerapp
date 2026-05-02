@@ -38,10 +38,12 @@ function App() {
   const titles = {
     calendar: 'Kalender', sequenzplan: 'Jahres- & Sequenzplanung',
     countdown: 'Ferien-Countdown', classes: 'Klassen & Kurse',
+    'classes-list': 'Klassen & Kurse',
     materials: 'Materialdatenbank', ki: 'KI-Services',
     profile: 'Mein Profil', settings: 'Einstellungen',
   };
-  const pageTitle = view.startsWith('class-')
+  const isClassDetailView = /^class-\d+$/.test(view);
+  const pageTitle = isClassDetailView
     ? (() => {
         const targetId = Number(view.replace('class-',''));
         const c = AppData.classes.find(cl => Number(cl.id) === targetId);
@@ -53,8 +55,8 @@ function App() {
     if (view === 'calendar')     return <CalendarView calTab={calTab} onCalTabChange={setCalTab} />;
     if (view === 'sequenzplan')  return <PlanningView subView="sequenzplan" />;
     if (view === 'countdown')    return <PlanningView subView="countdown" />;
-    if (view === 'classes')      return <ClassesView onNavigate={navigate} />;
-    if (view && view.startsWith('class-')) {
+    if (view === 'classes' || view === 'classes-list') return <ClassesView onNavigate={navigate} />;
+    if (isClassDetailView) {
       const id = parseInt(view.replace('class-',''));
       return <ClassDetailView classId={id} onNavigate={navigate} />;
     }
