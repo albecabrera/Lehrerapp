@@ -1,6 +1,27 @@
 
+const { useRef } = React;
+
 function Sidebar({ currentView, onNavigate }) {
   const { classes, classColors, user } = AppData;
+  const logoInputRef = useRef(null);
+
+  async function onSchoolLogoSelected(file) {
+    if (!file) return;
+    const allowedExt = ['png', 'jpg', 'jpeg', 'heic'];
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!allowedExt.includes(ext)) {
+      window.showToast('Nur .png, .jpg oder .heic erlaubt');
+      return;
+    }
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    window.LocalStore.saveUser({ schoolLogoUrl: dataUrl });
+    window.showToast('✓ Schullogo gespeichert');
+  }
 
   const calItems = [
     { id: 'today', label: 'Heute',  icon: '◈' },
@@ -73,13 +94,59 @@ function Sidebar({ currentView, onNavigate }) {
             background: 'linear-gradient(135deg, var(--accent), oklch(from var(--accent) calc(l + 0.08) calc(c - 0.02) calc(h + 30)))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 2px 8px oklch(from var(--accent) l c h / 0.35)',
-            flexShrink: 0,
+            flexShrink: 0, overflow: 'hidden', cursor: 'pointer',
           }}>
-            <span style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>L</span>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept=".png,.jpg,.jpeg,.heic,image/png,image/jpeg,image/heic,image/heif"
+              style={{ display: 'none' }}
+              onChange={async (e) => {
+                const file = e.target.files && e.target.files[0];
+                await onSchoolLogoSelected(file);
+                e.target.value = '';
+              }}
+            />
+            {user.schoolLogoUrl ? (
+              <img
+                src={user.schoolLogoUrl}
+                alt="Schullogo"
+                onClick={() => logoInputRef.current && logoInputRef.current.click()}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#fff', padding: '2px' }}
+              />
+            ) : (
+              <span
+                onClick={() => logoInputRef.current && logoInputRef.current.click()}
+                style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}
+              >
+                L
+              </span>
+            )}
           </div>
           <div>
             <div style={{ fontWeight: '800', fontSize: '14.5px', color: 'var(--text-1)', letterSpacing: '-0.4px' }}>LehrerApp</div>
-            <div style={{ fontSize: '10px', color: 'var(--text-3)', marginTop: '1px' }}>{user.school}</div>
+            <div style={{ fontSize: '10px', color: 'var(--text-3)', marginTop: '1px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>{user.school}</span>
+              <button
+                onClick={() => logoInputRef.current && logoInputRef.current.click()}
+                title="Logo ändern"
+                aria-label="Logo ändern"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  margin: 0,
+                  cursor: 'pointer',
+                  color: 'var(--accent)',
+                  fontSize: '12px',
+                  lineHeight: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                }}
+              >
+                ✎
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -162,9 +229,13 @@ function Sidebar({ currentView, onNavigate }) {
           <div style={{
             width: '24px', height: '24px', borderRadius: '50%',
             background: 'linear-gradient(135deg, var(--accent), oklch(from var(--accent) calc(l + 0.05) c calc(h + 20)))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden',
           }}>
-            <span style={{ color: '#fff', fontSize: '9px', fontWeight: '700' }}>{user.initials}</span>
+            {user.avatarUrl ? (
+              <img src={user.avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <span style={{ color: '#fff', fontSize: '9px', fontWeight: '700' }}>{user.initials}</span>
+            )}
           </div>
           <span style={{ flex: 1, fontWeight: currentView === 'profile' ? '600' : '400' }}>Mein Profil</span>
         </button>

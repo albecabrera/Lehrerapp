@@ -7,7 +7,13 @@ function App() {
   const [activeTool, setActiveTool] = useState(null);
   const [dark, setDark]     = useState(() => window.getTheme() === 'dark');
   const [viewKey, setViewKey] = useState(0); // triggers re-mount animation
+  const [now, setNow] = useState(() => new Date());
   const kiTools = ['worksheet','tafelbild','differenz','appbaukasten','elternbrief'];
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   function navigate(id) {
     setViewKey(k => k + 1);
@@ -80,7 +86,14 @@ function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {/* Date chip */}
             <div style={{ fontSize: '12.5px', color: 'var(--text-3)', background: 'var(--bg-subtle)', border: '1px solid var(--border-light)', borderRadius: 'var(--r-md)', padding: '5px 12px', fontWeight: '500' }}>
-              Di, 28. April 2026
+              {now.toLocaleString('de-DE', {
+                weekday: 'short',
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
             </div>
 
             {/* Dark mode toggle */}
@@ -96,8 +109,17 @@ function App() {
               boxShadow: '0 0 0 1.5px var(--accent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
               flexShrink: 0,
+              overflow: 'hidden',
             }}>
-              <span style={{ color: '#fff', fontSize: '11px', fontWeight: '700' }}>{AppData.user.initials}</span>
+              {AppData.user.avatarUrl ? (
+                <img
+                  src={AppData.user.avatarUrl}
+                  alt="Avatar"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <span style={{ color: '#fff', fontSize: '11px', fontWeight: '700' }}>{AppData.user.initials}</span>
+              )}
             </button>
           </div>
         </header>

@@ -771,20 +771,71 @@ function MaterialsView() {
 function ProfileView() {
   const { user } = AppData;
   const [saved, setSaved] = useState(false);
+  const avatarInputRef = useRef(null);
+  const [subjectsDraft, setSubjectsDraft] = useState((user.subjects || []).join(', '));
+
+  async function onAvatarSelected(file) {
+    if (!file) return;
+    const allowedExt = ['png', 'jpg', 'jpeg', 'heic'];
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!allowedExt.includes(ext)) {
+      window.showToast('Nur .png, .jpg oder .heic erlaubt');
+      return;
+    }
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    window.LocalStore.saveUser({ avatarUrl: dataUrl });
+    setSaved(true);
+    window.showToast('✓ Profilbild gespeichert');
+    setTimeout(() => setSaved(false), 1800);
+  }
 
   return (
     <div style={{ padding: '28px', maxWidth: '620px' }}>
       <h2 style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-1)', letterSpacing: '-0.4px', marginBottom: '24px' }}>Mein Profil</h2>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '22px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--r-xl)', padding: '24px 28px', marginBottom: '18px', boxShadow: 'var(--shadow-sm)' }}>
-        <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), oklch(from var(--accent) calc(l + 0.05) c calc(h + 25)))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 16px oklch(from var(--accent) l c h / 0.40)' }}>
-          <span style={{ color: '#fff', fontSize: '26px', fontWeight: '800' }}>{user.initials}</span>
+        <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), oklch(from var(--accent) calc(l + 0.05) c calc(h + 25)))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 16px oklch(from var(--accent) l c h / 0.40)', overflow: 'hidden' }}>
+          {user.avatarUrl ? (
+            <img src={user.avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <span style={{ color: '#fff', fontSize: '26px', fontWeight: '800' }}>{user.initials}</span>
+          )}
         </div>
         <div>
           <div style={{ fontSize: '21px', fontWeight: '800', color: 'var(--text-1)', letterSpacing: '-0.3px' }}>{user.name}</div>
           <div style={{ fontSize: '13px', color: 'var(--text-3)', marginTop: '3px', fontWeight: '500' }}>{user.role} · {user.school}</div>
           <div style={{ display: 'flex', gap: '6px', marginTop: '10px', flexWrap: 'wrap' }}>
             {user.subjects.map(s => <span key={s} style={{ fontSize: '11.5px', background: 'var(--accent-bg)', color: 'var(--accent-text)', padding: '3px 11px', borderRadius: 'var(--r-full)', fontWeight: '700' }}>{s}</span>)}
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept=".png,.jpg,.jpeg,.heic,image/png,image/jpeg,image/heic,image/heif"
+              style={{ display: 'none' }}
+              onChange={async (e) => {
+                const file = e.target.files && e.target.files[0];
+                await onAvatarSelected(file);
+                e.target.value = '';
+              }}
+            />
+            <Btn variant="secondary" onClick={() => avatarInputRef.current && avatarInputRef.current.click()}>Bild hochladen</Btn>
+            {user.avatarUrl && (
+              <Btn
+                variant="secondary"
+                onClick={() => {
+                  window.LocalStore.saveUser({ avatarUrl: '' });
+                  window.showToast('✓ Profilbild entfernt');
+                }}
+              >
+                Entfernen
+              </Btn>
+            )}
           </div>
         </div>
       </div>
@@ -797,8 +848,28 @@ function ProfileView() {
             <input defaultValue={val} style={iSt} />
           </div>
         ))}
+        <div style={{ marginBottom: '14px' }}>
+          <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-3)', display: 'block', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Fächer (Bearbeiten)
+          </label>
+          <input
+            value={subjectsDraft}
+            onChange={(e) => setSubjectsDraft(e.target.value)}
+            placeholder="z.B. Informatik, Mathematik"
+            style={iSt}
+          />
+        </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
-          <Btn onClick={() => { setSaved(true); window.showToast('✓ Profil gespeichert'); setTimeout(() => setSaved(false), 2500); }}
+          <Btn onClick={() => {
+            const subjects = (subjectsDraft || '')
+              .split(',')
+              .map(s => s.trim())
+              .filter(Boolean);
+            window.LocalStore.saveUser({ subjects });
+            setSaved(true);
+            window.showToast('✓ Profil gespeichert');
+            setTimeout(() => setSaved(false), 2500);
+          }}
             style={{ background: saved ? 'var(--green)' : 'var(--accent)' }}>
             {saved ? '✓ Gespeichert' : 'Speichern'}
           </Btn>
