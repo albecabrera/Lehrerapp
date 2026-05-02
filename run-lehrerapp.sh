@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PORT="${PORT:-4180}"
+PORT="${PORT:-4174}"
 APP_DIR="/Users/acabrera/repos/Lehrerapp"
 
 cd "$APP_DIR"

@@ -2,7 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = process.env.PORT || 4173;
+const PORT = process.env.PORT || 4174;
 const ROOT = __dirname;
 const API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5';
@@ -30,6 +30,11 @@ function safePath(urlPath) {
   const abs = path.normalize(path.join(ROOT, p));
   if (!abs.startsWith(ROOT)) return null;
   return abs;
+}
+
+function isProbablyRoute(urlPath) {
+  const decoded = decodeURIComponent((urlPath || '/').split('?')[0]);
+  return !path.extname(decoded);
 }
 
 async function handleClaude(prompt) {
@@ -145,7 +150,16 @@ const server = http.createServer(async (req, res) => {
   const fullPath = safePath(req.url || '/');
   if (!fullPath) return send(res, 403, { error: 'forbidden' });
   fs.readFile(fullPath, (err, data) => {
-    if (err) return send(res, 404, { error: 'not_found' });
+    if (err) {
+      if (isProbablyRoute(req.url)) {
+        const appEntry = path.join(ROOT, 'Lehrerapp.html');
+        return fs.readFile(appEntry, (entryErr, entryData) => {
+          if (entryErr) return send(res, 404, { error: 'not_found' });
+          return send(res, 200, entryData, MIME['.html']);
+        });
+      }
+      return send(res, 404, { error: 'not_found' });
+    }
     const ext = path.extname(fullPath).toLowerCase();
     return send(res, 200, data, MIME[ext] || 'application/octet-stream');
   });

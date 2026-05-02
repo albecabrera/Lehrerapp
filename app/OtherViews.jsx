@@ -214,7 +214,7 @@ function ClassesView({ onNavigate }) {
                 setDragClassId(null);
               }}
               onDragEnd={() => setDragClassId(null)}
-              onClick={() => setExpandedClassId(prev => prev === cls.id ? null : cls.id)}
+              onClick={() => onNavigate('class-' + cls.id)}
               onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -259,10 +259,6 @@ function ClassesView({ onNavigate }) {
                 </div>
               </div>
               <div
-                onClick={(e) => {
-                  // Evita navegar a detalle cuando el usuario intenta renombrar
-                  e.stopPropagation();
-                }}
                 onMouseDown={(e) => {
                   // Fallback robusto para clic derecho en algunos navegadores/trackpads
                   if (e.button === 2) {
@@ -393,7 +389,8 @@ function ClassDetailView({ classId, onNavigate }) {
   const [tab, setTab] = useState('overview');
   const [studentInput, setStudentInput] = useState('');
   const [, setVersion] = useState(0);
-  const cls = AppData.classes.find(c => c.id === classId);
+  const normalizedClassId = Number(classId);
+  const cls = AppData.classes.find(c => Number(c.id) === normalizedClassId);
   if (!cls) return <div style={{ padding: '28px', color: 'var(--text-2)' }}>Klasse nicht gefunden.</div>;
   const color = AppData.classColors[cls.colorIdx];
   const roster = window.LocalStore.getRoster(cls.id);
@@ -404,8 +401,8 @@ function ClassDetailView({ classId, onNavigate }) {
   const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(1);
   const cellRefs = useRef({});
-  useEffect(() => { setDraftRoster(window.LocalStore.getRoster(classId)); }, [classId]);
-  useEffect(() => { cellRefs.current = {}; }, [draftRoster.length, classId]);
+  useEffect(() => { setDraftRoster(window.LocalStore.getRoster(normalizedClassId)); }, [normalizedClassId]);
+  useEffect(() => { cellRefs.current = {}; }, [draftRoster.length, normalizedClassId]);
   const fields = ['familienname','vorname','klasse','spitzname','geschlecht','besonderheiten'];
   const visibleRoster = [...draftRoster]
     .filter(r => {
@@ -451,7 +448,7 @@ function ClassDetailView({ classId, onNavigate }) {
     <div style={{ padding: '28px', maxWidth: '880px' }}>
       <button onClick={() => onNavigate('classes')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: '13px', fontWeight: '600', marginBottom: '18px', padding: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>← Alle Klassen</button>
       <button onClick={() => {
-        window.LocalStore.deleteClass(classId);
+        window.LocalStore.deleteClass(normalizedClassId);
         window.showToast('✓ Klasse gelöscht');
         onNavigate('classes');
       }} style={{ marginLeft: '10px', marginBottom: '18px', background: 'var(--red-bg)', border: '1px solid var(--red)', color: 'var(--red)', cursor: 'pointer', fontSize: '12px', fontWeight: '700', padding: '8px 12px', borderRadius: 'var(--r-md)' }}>
@@ -590,6 +587,7 @@ function ClassDetailView({ classId, onNavigate }) {
             {draftRoster.length === 0 ? (
               <window.UI.Alert type="info">Noch keine Schüler:innen erfasst.</window.UI.Alert>
             ) : (
+              <>
               <div style={{ maxHeight: '420px', overflow: 'auto', borderTop: '1px solid var(--border-light)', paddingTop: '8px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr 1fr 1fr 1.5fr auto', gap: '6px' }}>
                 {[
@@ -651,7 +649,7 @@ function ClassDetailView({ classId, onNavigate }) {
                   <Btn variant="secondary" onClick={() => setPage(p => Math.min(totalPages, p + 1))}>→</Btn>
                 </div>
               </div>
-              </div>
+              </>
             )}
           </window.UI.Card>
         </div>

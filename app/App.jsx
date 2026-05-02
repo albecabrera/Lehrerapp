@@ -36,7 +36,11 @@ function App() {
     profile: 'Mein Profil', settings: 'Einstellungen',
   };
   const pageTitle = view.startsWith('class-')
-    ? (() => { const c = AppData.classes.find(cl => cl.id === parseInt(view.replace('class-',''))); return c ? c.name : 'Klasse'; })()
+    ? (() => {
+        const targetId = Number(view.replace('class-',''));
+        const c = AppData.classes.find(cl => Number(cl.id) === targetId);
+        return c ? c.name : 'Klasse';
+      })()
     : (titles[view] || 'Kalender');
 
   function renderContent() {
